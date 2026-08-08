@@ -47,15 +47,15 @@ app.add_middleware(
 )
 
 
-# Preload heavy models on startup (optional). This ensures the embedding
-# model is downloaded during the container build/startup rather than on
-# the first user request, reducing first-request latency.
-@app.on_event("startup")
-async def on_startup():
-    try:
-        preload_models()
-    except Exception as e:
-        logger.warning("[startup] Failed to preload models: %s", e)
+# Preload heavy models on startup only if explicitly enabled. On low-memory
+# Render free instances this can cause "out of memory" during startup.
+if os.getenv("PRELOAD_AT_STARTUP", "false").strip().lower() in {"1", "true", "yes"}:
+    @app.on_event("startup")
+    async def on_startup():
+        try:
+            preload_models()
+        except Exception as e:
+            logger.warning("[startup] Failed to preload models: %s", e)
 
 
 def _sanitize_filename(name: str) -> str:
