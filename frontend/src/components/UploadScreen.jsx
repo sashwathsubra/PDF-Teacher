@@ -90,9 +90,8 @@ export default function UploadScreen({ onSessionReady }) {
             <span className="text-xl font-bold text-accent-600">📄</span>
             <span className="font-semibold text-gray-900 text-base tracking-tight">PDF Teacher</span>
           </div>
-          <div className="flex items-center gap-6 text-sm text-gray-500">
-            <a href="#" className="hover:text-gray-800 transition-colors">How it works</a>
-            <a href="#" className="hover:text-gray-800 transition-colors">About</a>
+          <div className="flex items-center gap-4 text-sm text-gray-500">
+            <a href="#about" className="hover:text-gray-800 transition-colors">About</a>
           </div>
         </div>
       </nav>
@@ -101,13 +100,12 @@ export default function UploadScreen({ onSessionReady }) {
       <main className="flex-1 flex flex-col items-center justify-center px-4 pb-20 fade-in">
         <div className="w-full max-w-xl text-center">
           {/* Heading */}
-          <h1 className="text-4xl font-bold text-gray-900 mb-3 tracking-tight leading-tight">
+          <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-3 tracking-tight leading-tight">
             Ask Your PDFs
           </h1>
-          <p className="text-gray-400 text-base mb-10 leading-relaxed">
-            Upload your study material and ask questions<br className="hidden sm:block" /> like you would ask a teacher.
+          <p className="text-gray-400 text-base sm:text-lg mb-10 leading-relaxed">
+            Upload your study material and ask questions<br className="hidden sm:block" /> like a teacher would answer.
           </p>
-
           {/* Drop zone / file list area */}
           {files.length === 0 ? (
             /* Empty state — big upload target */
@@ -190,6 +188,19 @@ export default function UploadScreen({ onSessionReady }) {
               {error}
             </div>
           )}
+
+          <section id="about" className="mt-10 text-left rounded-3xl border border-gray-100 bg-gray-50 p-6 shadow-sm">
+            <h2 className="text-lg font-semibold text-gray-900 mb-3">About PDF Teacher</h2>
+            <p className="text-sm text-gray-600 leading-relaxed">
+              Upload one or more PDFs and ask questions directly from your documents. The app reads your PDFs, builds a searchable index, and answers in a teacher-style voice with sources.
+            </p>
+            <ul className="mt-4 space-y-2 text-sm text-gray-600">
+              <li>• Works with selectable PDF text.</li>
+              <li>• Preserve your session across page refreshes in the same tab.</li>
+              <li>• Closing the tab clears the current session and uploaded context.</li>
+              <li>• Start a new upload anytime from the chat screen.</li>
+            </ul>
+          </section>
         </div>
       </main>
 

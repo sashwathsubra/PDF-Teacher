@@ -12,9 +12,9 @@ export default function FileList({ files, onRemove }) {
       {files.map(file => (
         <li
           key={file.name}
-          className="flex items-center justify-between gap-3 bg-white rounded-lg px-3 py-2.5 border border-gray-100"
+          className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white rounded-lg px-3 py-3 border border-gray-100"
         >
-          <div className="flex items-center gap-2.5 min-w-0">
+          <div className="flex items-center gap-2.5 min-w-0 w-full sm:w-auto">
             <span className="text-red-500 flex-shrink-0">
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M7 18H17V16H7v2zm10-8h-4V4H7v6H3l9 9 9-9h-4V10z" fill="none"/>
@@ -23,11 +23,11 @@ export default function FileList({ files, onRemove }) {
                 />
               </svg>
             </span>
-            <span className="text-sm text-gray-800 truncate font-medium" title={file.name}>
+            <span className="text-sm text-gray-800 font-medium break-words truncate" title={file.name}>
               {file.name}
             </span>
           </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
+          <div className="flex items-center gap-3 flex-shrink-0 w-full sm:w-auto justify-between">
             <span className="text-xs text-gray-400">{formatBytes(file.size)}</span>
             <button
               type="button"

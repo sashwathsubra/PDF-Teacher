@@ -29,7 +29,7 @@ export default function MessageBubble({ role, text, sources = [] }) {
   if (role === 'user') {
     return (
       <div className="flex justify-end fade-in">
-        <div className="max-w-[85%] bg-gray-100 text-gray-800 rounded-2xl rounded-tr-sm px-4 py-3 text-sm leading-relaxed">
+        <div className="max-w-[90%] sm:max-w-[85%] bg-gray-100 text-gray-800 rounded-2xl rounded-tr-sm px-4 py-3 text-sm leading-relaxed break-words whitespace-pre-wrap">
           {text}
         </div>
       </div>
@@ -44,7 +44,7 @@ export default function MessageBubble({ role, text, sources = [] }) {
       </div>
       <div className="flex-1 min-w-0">
         <div className="relative">
-          <div className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap" 
+          <div className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap break-words" 
                dangerouslySetInnerHTML={{ __html: text }}
           />
 
