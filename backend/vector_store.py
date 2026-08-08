@@ -29,6 +29,11 @@ def _get_model() -> SentenceTransformer:
     return _model
 
 
+def preload_models() -> None:
+    """Public helper to force model download/load at build/startup time."""
+    _get_model()
+
+
 # ---------------------------------------------------------------------------
 # In-memory session store
 # { session_id: { "index": faiss.Index, "metadata": [chunk_dict, ...] } }

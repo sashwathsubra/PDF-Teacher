@@ -19,20 +19,59 @@ from pdf_processor import extract_chunks_from_pdf
 from vector_store import build_index, search, session_exists
 from teacher_engine import build_answer
 from dotenv import load_dotenv
+import uuid
+import asyncio
+from typing import List
+import logging
+import re
+
+from fastapi import FastAPI, UploadFile, File, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
+
+from pdf_processor import extract_chunks_from_pdf
+from vector_store import build_index, search, session_exists
+from teacher_engine import build_answer
+from dotenv import load_dotenv
+import os
+
 load_dotenv()
 
-# ---------------------------------------------------------------------------
-# App setup
-# ---------------------------------------------------------------------------
-app = FastAPI(title="PDF Teacher Assistant", version="1.0.0")
+# Basic logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("pdf-teacher")
+
+
+def _sanitize_filename(name: str) -> str:
+    name = os.path.basename(name or "unknown.pdf")
+    # Replace suspicious chars with underscore, keep common safe chars
+    name = re.sub(r"[^A-Za-z0-9._-]", "_", name)
+    return name[:200]
+else:
+    origins = ["*"]  # dev fallback
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],          # Dev: allow all. Restrict in production.
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# Preload heavy models on startup (optional). This ensures the embedding
+# model is downloaded during the container build/startup rather than on
+# the first user request, reducing first-request latency.
+from vector_store import preload_models
+
+
+@app.on_event("startup")
+async def on_startup():
+    try:
+        preload_models()
+    except Exception as e:
+        print(f"[startup] Failed to preload models: {e}")
 
 MAX_TOTAL_SIZE_BYTES = 50 * 1024 * 1024  # 50 MB
 
@@ -95,7 +134,15 @@ async def upload_pdfs(files: List[UploadFile] = File(...)):
                     "Please remove some files and try again."
                 ),
             )
-        file_data.append((f.filename or "unknown.pdf", content))
+        # Basic PDF validation: check PDF magic bytes
+        stripped = content.lstrip()
+        if not stripped.startswith(b"%PDF"):
+            # Skip non-PDF/binary files; record as skipped later
+            file_data.append((f.filename or "unknown.pdf", None))
+            continue
+
+        filename = _sanitize_filename(f.filename or "unknown.pdf")
+        file_data.append((filename, content))
 
     # Process PDFs in a thread (CPU-bound)
     all_chunks = []
@@ -105,9 +152,18 @@ async def upload_pdfs(files: List[UploadFile] = File(...)):
     loop = asyncio.get_event_loop()
 
     for filename, content in file_data:
-        chunks = await loop.run_in_executor(
-            None, extract_chunks_from_pdf, content, filename
-        )
+        if content is None:
+            skipped_files.append(filename)
+            continue
+
+        try:
+            chunks = await loop.run_in_executor(
+                None, extract_chunks_from_pdf, content, filename
+            )
+        except Exception as e:
+            logger.warning("Failed to extract %s: %s", filename, e)
+            skipped_files.append(filename)
+            continue
         # Check if the first (and only) chunk is a skip sentinel
         if chunks and chunks[0].get("skipped"):
             skipped_files.append(filename)
@@ -186,6 +242,19 @@ async def chat(req: ChatRequest):
         # Re-raise expected HTTP exceptions
         raise
     except Exception as e:
-        # Surface unexpected server-side errors to the frontend for debugging
-        print(f"[chat] Unexpected error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # Log unexpected errors server-side but return a generic message to clients
+        logger.exception("Unexpected error in /chat")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@app.middleware("http")
+async def security_headers_middleware(request: Request, call_next):
+    response = await call_next(request)
+    # Add security headers (sensible defaults for API)
+    response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains; preload"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "same-origin"
+    # Minimal CSP to prevent inline script/style execution if ever serving HTML
+    response.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'"
+    return response
