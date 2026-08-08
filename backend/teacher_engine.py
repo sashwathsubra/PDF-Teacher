@@ -24,13 +24,18 @@ SYSTEM_PROMPT = (
     "ONLY the given excerpts — do not add outside facts, general knowledge, or "
     "any information from sources other than the provided PDF text. If the "
     "excerpts do not fully answer the question, reply exactly with: "
-    "\"Incomplete info.\" Do not invent or assume missing details. "
-    "Explain the answer simply and clearly, but stay completely faithful to "
-    "the excerpts. Always mention the source file name and page number at the "
-    "end of your answer."
+    "\"Incomplete information.\" Do not invent or assume missing details. "
+    "If the answer is incomplete, do not include any source citations or page "
+    "numbers. Explain the answer simply and clearly, but stay completely faithful to "
+    "the excerpts. If you can answer the question, always mention the source file name "
+    "and page number at the end of your answer. If the user asks you to summarize a topic, "
+    "provide a concise topic summary using only the provided excerpts."
 )
 
-NOT_COVERED_RESPONSE = "Incomplete info."
+NOT_COVERED_RESPONSE = (
+    "Incomplete information. The provided PDF excerpts are not sufficient to "
+    "answer this fully from your uploaded documents."
+)
 
 
 def _build_gemini_request() -> tuple[str, Dict[str, str]]:
@@ -158,6 +163,10 @@ def build_answer(
         # Remove any LLM-inserted source/footer lines that start with 'Source:'
         # Remove such lines anywhere in the text (case-insensitive, line-based)
         answer = re.sub(r"(?im)^\s*Source:.*(?:\r?\n)?", "", answer).strip()
+
+        normalized = re.sub(r"\s+", " ", answer).strip()
+        if re.match(r"(?i)^Incomplete (information|info)\.?$", normalized):
+            return NOT_COVERED_RESPONSE, []
 
         # Append canonical source line using the first chunk (if present)
         if chunks:

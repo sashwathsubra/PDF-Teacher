@@ -134,6 +134,9 @@ export default function ChatWindow({ sessionId, processedFiles, onUploadNew }) {
       <footer className="border-t border-gray-100 bg-white flex-shrink-0">
         <div className="max-w-2xl mx-auto px-4 py-4">
           {/* Disclaimer */}
+          <p className="text-center text-xs text-gray-300 mb-1">
+            Tip: Ask “Summarize [topic]” for a PDF-only summary.
+          </p>
           <p className="text-center text-xs text-gray-300 mb-3">
             I only answer using your uploaded PDFs
           </p>
