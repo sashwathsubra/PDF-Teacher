@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import axios from 'axios';
 import FileList from './FileList';
 
-const API_BASE = 'http://localhost:8000';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const MAX_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB
 
 function formatBytes(bytes) {
