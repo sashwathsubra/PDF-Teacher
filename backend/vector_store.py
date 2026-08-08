@@ -1,37 +1,115 @@
 """
 vector_store.py
 Manages embeddings and FAISS index per session.
-Uses sentence-transformers (all-MiniLM-L6-v2) — free, local, no API needed.
+Uses Google's Gemini Embedding API (free tier, no local model, no torch)
+instead of sentence-transformers — this keeps memory usage low enough
+to run on Render's free 512MB instance.
 """
 
 from __future__ import annotations
 
 import numpy as np
 import faiss
-from sentence_transformers import SentenceTransformer
-from typing import List, Dict, Any, Tuple
+import httpx
 import os
 import json
+import time
+from typing import List, Dict, Any, Tuple
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # ---------------------------------------------------------------------------
-# Model — loaded once globally (first load downloads ~90 MB, then cached)
+# Gemini embedding config
 # ---------------------------------------------------------------------------
-_MODEL_NAME = "all-MiniLM-L6-v2"
-_model: SentenceTransformer | None = None
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
+GEMINI_API_BASE_URL = os.getenv(
+    "GEMINI_API_BASE_URL", "https://generativelanguage.googleapis.com/v1beta"
+).rstrip("/")
+EMBEDDING_MODEL = os.getenv("GEMINI_EMBEDDING_MODEL", "gemini-embedding-001").strip()
 
-
-def _get_model() -> SentenceTransformer:
-    global _model
-    if _model is None:
-        print(f"[vector_store] Loading embedding model: {_MODEL_NAME}...")
-        _model = SentenceTransformer(_MODEL_NAME)
-        print("[vector_store] Model loaded.")
-    return _model
+_BATCH_SIZE = 50  # texts per API call
+_MAX_RETRIES = 3
 
 
 def preload_models() -> None:
-    """Public helper to force model download/load at build/startup time."""
-    _get_model()
+    """
+    No local model to preload anymore — kept as a no-op so existing
+    build commands (`python preload_models.py`) don't break.
+    """
+    if not GEMINI_API_KEY:
+        print("[vector_store] WARNING: GEMINI_API_KEY not set.")
+    else:
+        print("[vector_store] Using Gemini Embedding API — no local model to preload.")
+
+
+def _embed_batch(texts: List[str], task_type: str) -> np.ndarray:
+    """
+    Call Gemini's batchEmbedContents endpoint for a batch of texts.
+    task_type: "RETRIEVAL_DOCUMENT" for chunks being indexed,
+               "RETRIEVAL_QUERY" for the user's question.
+    """
+    if not GEMINI_API_KEY:
+        raise ValueError("Missing GEMINI_API_KEY. Set it in your environment.")
+
+    url = f"{GEMINI_API_BASE_URL}/models/{EMBEDDING_MODEL}:batchEmbedContents"
+    headers = {
+        "x-goog-api-key": GEMINI_API_KEY,
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "requests": [
+            {
+                "model": f"models/{EMBEDDING_MODEL}",
+                "content": {"parts": [{"text": t}]},
+                "taskType": task_type,
+            }
+            for t in texts
+        ]
+    }
+
+    last_exc = None
+    for attempt in range(_MAX_RETRIES):
+        try:
+            with httpx.Client(timeout=30.0) as client:
+                response = client.post(url, headers=headers, json=payload)
+                if response.status_code == 429:
+                    wait = 2 ** attempt
+                    print(f"[vector_store] Rate limited, retrying in {wait}s...")
+                    time.sleep(wait)
+                    continue
+                response.raise_for_status()
+                data = response.json()
+                vectors = [e["values"] for e in data["embeddings"]]
+                return np.array(vectors, dtype="float32")
+        except httpx.HTTPStatusError as exc:
+            last_exc = exc
+            if exc.response.status_code in (401, 403):
+                raise ValueError(
+                    "Invalid Gemini API key or unauthorized request for embeddings."
+                ) from exc
+            time.sleep(1)
+        except Exception as exc:
+            last_exc = exc
+            time.sleep(1)
+
+    raise RuntimeError(f"Failed to get embeddings after {_MAX_RETRIES} attempts: {last_exc}")
+
+
+def _embed_texts(texts: List[str], task_type: str) -> np.ndarray:
+    """Embed a list of texts in batches, L2-normalise, and concatenate."""
+    all_vecs = []
+    for i in range(0, len(texts), _BATCH_SIZE):
+        batch = texts[i : i + _BATCH_SIZE]
+        vecs = _embed_batch(batch, task_type)
+        all_vecs.append(vecs)
+    embeddings = np.vstack(all_vecs)
+
+    # L2-normalise so inner product == cosine similarity
+    norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
+    norms[norms == 0] = 1e-8
+    embeddings = embeddings / norms
+    return embeddings.astype("float32")
 
 
 # ---------------------------------------------------------------------------
@@ -40,33 +118,25 @@ def preload_models() -> None:
 # ---------------------------------------------------------------------------
 _sessions: Dict[str, Dict[str, Any]] = {}
 
-# Persisted sessions directory (faiss index + metadata)
 ROOT_DIR = os.path.dirname(__file__)
 SESSIONS_DIR = os.path.join(ROOT_DIR, "sessions")
 os.makedirs(SESSIONS_DIR, exist_ok=True)
 
-# Similarity threshold: cosine distance in L2-normalised space maps to cosine
-# similarity. Distance > 1.0 (approx cosine_sim < 0.5) → "not covered".
-# We use L2 on normalised vectors: dist = 2*(1 - cos_sim)
-# dist > 1.0  →  cos_sim < 0.5  →  weak match
 SIMILARITY_DISTANCE_THRESHOLD = 1.0
 
 
 def build_index(session_id: str, chunks: List[Dict[str, Any]]) -> int:
     """
-    Embed all chunks and build a FAISS index for the session.
+    Embed all chunks via Gemini and build a FAISS index for the session.
     Returns the number of chunks indexed.
     """
-    model = _get_model()
     texts = [c["text"] for c in chunks]
 
-    print(f"[vector_store] Embedding {len(texts)} chunks...")
-    embeddings = model.encode(texts, batch_size=64, show_progress_bar=False,
-                              normalize_embeddings=True)
-    embeddings = np.array(embeddings, dtype="float32")
+    print(f"[vector_store] Embedding {len(texts)} chunks via Gemini...")
+    embeddings = _embed_texts(texts, task_type="RETRIEVAL_DOCUMENT")
 
     dim = embeddings.shape[1]
-    index = faiss.IndexFlatIP(dim)  # Inner-product on normalised vecs = cosine sim
+    index = faiss.IndexFlatIP(dim)
     index.add(embeddings)
 
     _sessions[session_id] = {
@@ -75,7 +145,6 @@ def build_index(session_id: str, chunks: List[Dict[str, Any]]) -> int:
     }
     print(f"[vector_store] Session '{session_id}': indexed {index.ntotal} chunks.")
 
-    # Persist index and metadata to disk so sessions survive restarts
     try:
         index_path = os.path.join(SESSIONS_DIR, f"{session_id}.index")
         meta_path = os.path.join(SESSIONS_DIR, f"{session_id}_meta.json")
@@ -93,22 +162,14 @@ def search(session_id: str, query: str, top_k: int = 5
            ) -> Tuple[List[Dict[str, Any]], bool]:
     """
     Search the session's FAISS index for the top-k most similar chunks.
-
-    Returns:
-        (results, below_threshold)
-        - results: list of chunk dicts with an added "score" key
-        - below_threshold: True if NO result passes the similarity threshold
     """
-    # If session not loaded in memory, try to load from disk
     if session_id not in _sessions:
         if not _load_session_from_disk(session_id):
             raise KeyError(f"Session '{session_id}' not found. Please re-upload your PDFs.")
 
     session = _sessions[session_id]
-    model = _get_model()
 
-    query_vec = model.encode([query], normalize_embeddings=True)
-    query_vec = np.array(query_vec, dtype="float32")
+    query_vec = _embed_texts([query], task_type="RETRIEVAL_QUERY")
 
     k = min(top_k, session["index"].ntotal)
     scores, indices = session["index"].search(query_vec, k)
@@ -118,8 +179,6 @@ def search(session_id: str, query: str, top_k: int = 5
     for score, idx in zip(scores[0], indices[0]):
         if idx == -1:
             continue
-        # score here is cosine similarity (IP on normalised vecs), range [-1, 1]
-        # Threshold: 0.3 cosine similarity
         chunk = dict(session["metadata"][idx])
         chunk["score"] = float(score)
         results.append(chunk)
@@ -132,7 +191,6 @@ def search(session_id: str, query: str, top_k: int = 5
 def session_exists(session_id: str) -> bool:
     if session_id in _sessions:
         return True
-    # Check on-disk
     index_path = os.path.join(SESSIONS_DIR, f"{session_id}.index")
     meta_path = os.path.join(SESSIONS_DIR, f"{session_id}_meta.json")
     return os.path.exists(index_path) and os.path.exists(meta_path)
@@ -152,7 +210,6 @@ def delete_session(session_id: str) -> None:
 
 
 def _load_session_from_disk(session_id: str) -> bool:
-    """Attempt to load a persisted session into memory. Returns True on success."""
     index_path = os.path.join(SESSIONS_DIR, f"{session_id}.index")
     meta_path = os.path.join(SESSIONS_DIR, f"{session_id}_meta.json")
     if not (os.path.exists(index_path) and os.path.exists(meta_path)):
