@@ -73,10 +73,10 @@ export default function ChatWindow({ sessionId, processedFiles, onUploadNew }) {
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-white">
+    <div className="flex flex-col h-screen bg-white">
       {/* Top bar */}
-      <header className="sticky top-0 z-30 border-b border-gray-100 bg-white/95 backdrop-blur-sm shadow-sm/5">
-        <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between gap-3">
+      <header className="border-b border-gray-100 bg-white flex-shrink-0">
+        <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-xl">📄</span>
             <span className="font-semibold text-gray-900 text-sm">PDF Teacher Assistant</span>
@@ -96,7 +96,7 @@ export default function ChatWindow({ sessionId, processedFiles, onUploadNew }) {
       {/* Loaded files indicator */}
       {processedFiles?.length > 0 && (
         <div className="border-b border-gray-50 bg-gray-50 flex-shrink-0">
-          <div className="max-w-3xl mx-auto px-4 py-2 flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-1.5">
+          <div className="max-w-3xl mx-auto px-4 py-2 flex items-center gap-1.5 flex-wrap">
             <svg className="w-3 h-3 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5..." />
             </svg>
@@ -111,7 +111,7 @@ export default function ChatWindow({ sessionId, processedFiles, onUploadNew }) {
       )}
 
       {/* Messages area */}
-      <main className="flex-1 overflow-y-auto custom-scroll pb-4">
+      <main className="flex-1 overflow-y-auto custom-scroll">
         <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
           {messages.map((msg, i) => (
             <MessageBubble
@@ -131,13 +131,13 @@ export default function ChatWindow({ sessionId, processedFiles, onUploadNew }) {
       </main>
 
       {/* Input bar */}
-      <footer className="sticky bottom-0 z-30 border-t border-gray-100 bg-white/95 backdrop-blur-sm flex-shrink-0">
-        <div className="max-w-2xl mx-auto px-4 py-4 safe-area-bottom">
+      <footer className="border-t border-gray-100 bg-white flex-shrink-0">
+        <div className="max-w-2xl mx-auto px-4 py-4">
           {/* Disclaimer */}
           <p className="text-center text-xs text-gray-300 mb-3">
             I only answer using your uploaded PDFs
           </p>
-          <div className="flex flex-col sm:flex-row items-end sm:items-center gap-3 bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3 focus-within:border-accent-300 focus-within:ring-2 focus-within:ring-accent-100 transition-all">
+          <div className="flex items-end gap-3 bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3 focus-within:border-accent-300 focus-within:ring-2 focus-within:ring-accent-100 transition-all">
             <textarea
               ref={inputRef}
               rows={1}
@@ -150,13 +150,13 @@ export default function ChatWindow({ sessionId, processedFiles, onUploadNew }) {
               }}
               onKeyDown={handleKeyDown}
               placeholder="Ask a question from your PDFs…"
-              className="flex-1 bg-transparent text-sm text-gray-800 placeholder-gray-400 resize-none outline-none leading-relaxed min-h-[36px] max-h-[120px]"
+              className="flex-1 bg-transparent text-sm text-gray-800 placeholder-gray-400 resize-none outline-none leading-relaxed min-h-[24px] max-h-[120px]"
               disabled={isLoading}
             />
             <button
               onClick={sendMessage}
               disabled={!input.trim() || isLoading}
-              className="flex-shrink-0 w-10 h-10 rounded-xl bg-accent-600 hover:bg-accent-700 disabled:bg-gray-200 text-white disabled:text-gray-400 flex items-center justify-center transition-all"
+              className="flex-shrink-0 w-8 h-8 rounded-lg bg-accent-600 hover:bg-accent-700 disabled:bg-gray-200 text-white disabled:text-gray-400 flex items-center justify-center transition-all"
               aria-label="Send message"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>

@@ -17,6 +17,7 @@ export default function UploadScreen({ onSessionReady }) {
   const [error, setError] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState('');
+  const [showAbout, setShowAbout] = useState(false);
   const inputRef = useRef(null);
 
   const totalSize = files.reduce((acc, f) => acc + f.size, 0);
@@ -90,8 +91,14 @@ export default function UploadScreen({ onSessionReady }) {
             <span className="text-xl font-bold text-accent-600">📄</span>
             <span className="font-semibold text-gray-900 text-base tracking-tight">PDF Teacher</span>
           </div>
-          <div className="flex items-center gap-4 text-sm text-gray-500">
-            <a href="#about" className="hover:text-gray-800 transition-colors">About</a>
+          <div className="flex items-center gap-6 text-sm text-gray-500">
+            <button
+              type="button"
+              onClick={() => setShowAbout(true)}
+              className="hover:text-gray-800 transition-colors"
+            >
+              About
+            </button>
           </div>
         </div>
       </nav>
@@ -100,11 +107,11 @@ export default function UploadScreen({ onSessionReady }) {
       <main className="flex-1 flex flex-col items-center justify-center px-4 pb-20 fade-in">
         <div className="w-full max-w-xl text-center">
           {/* Heading */}
-          <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-3 tracking-tight leading-tight">
+          <h1 className="text-4xl font-bold text-gray-900 mb-3 tracking-tight leading-tight">
             Ask Your PDFs
           </h1>
-          <p className="text-gray-400 text-base sm:text-lg mb-10 leading-relaxed">
-            Upload your study material and ask questions<br className="hidden sm:block" /> like a teacher would answer.
+          <p className="text-gray-400 text-base mb-10 leading-relaxed">
+            Upload your study material and ask questions<br className="hidden sm:block" /> like you would ask a teacher.
           </p>
           {/* Drop zone / file list area */}
           {files.length === 0 ? (
@@ -188,19 +195,6 @@ export default function UploadScreen({ onSessionReady }) {
               {error}
             </div>
           )}
-
-          <section id="about" className="mt-10 text-left rounded-3xl border border-gray-100 bg-gray-50 p-6 shadow-sm">
-            <h2 className="text-lg font-semibold text-gray-900 mb-3">About PDF Teacher</h2>
-            <p className="text-sm text-gray-600 leading-relaxed">
-              Upload one or more PDFs and ask questions directly from your documents. The app reads your PDFs, builds a searchable index, and answers in a teacher-style voice with sources.
-            </p>
-            <ul className="mt-4 space-y-2 text-sm text-gray-600">
-              <li>• Works with selectable PDF text.</li>
-              <li>• Preserve your session across page refreshes in the same tab.</li>
-              <li>• Closing the tab clears the current session and uploaded context.</li>
-              <li>• Start a new upload anytime from the chat screen.</li>
-            </ul>
-          </section>
         </div>
       </main>
 
@@ -212,6 +206,35 @@ export default function UploadScreen({ onSessionReady }) {
         className="hidden"
         onChange={e => { addFiles(e.target.files); e.target.value = ''; }}
       />
+
+      {showAbout && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-6">
+          <div className="w-full max-w-xl rounded-3xl bg-white p-6 shadow-2xl ring-1 ring-black/5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">About PDF Teacher</h2>
+                <p className="mt-3 text-sm text-gray-600 leading-relaxed">
+                  Upload one or more PDFs and ask questions directly from your documents. The app reads your PDFs, builds a searchable index, and answers in a teacher-style voice with sources.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAbout(false)}
+                className="rounded-full bg-gray-100 text-gray-600 p-2 hover:bg-gray-200"
+                aria-label="Close about panel"
+              >
+                ×
+              </button>
+            </div>
+            <ul className="mt-5 space-y-3 text-sm text-gray-600">
+              <li>• Works with selectable PDF text.</li>
+              <li>• Refresh preserves the session in the same tab.</li>
+              <li>• Closing the tab clears the session and uploaded context.</li>
+              <li>• Start a new upload anytime from the chat screen.</li>
+            </ul>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
