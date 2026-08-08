@@ -7,34 +7,22 @@ Endpoints:
   POST /chat    — ask a question, retrieve + LLM answer, return answer + sources
 """
 
-import uuid
 import asyncio
-from typing import List
-
-from fastapi import FastAPI, UploadFile, File, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-
-from pdf_processor import extract_chunks_from_pdf
-from vector_store import build_index, search, session_exists
-from teacher_engine import build_answer
-from dotenv import load_dotenv
-import uuid
-import asyncio
-from typing import List
 import logging
+import os
 import re
+import uuid
+from typing import List
 
-from fastapi import FastAPI, UploadFile, File, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from pdf_processor import extract_chunks_from_pdf
-from vector_store import build_index, search, session_exists
-from teacher_engine import build_answer
 from dotenv import load_dotenv
-import os
+from pdf_processor import extract_chunks_from_pdf
+from vector_store import build_index, preload_models, search, session_exists
+from teacher_engine import build_answer
 
 load_dotenv()
 
@@ -42,12 +30,11 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("pdf-teacher")
 
+app = FastAPI(title="PDF Teacher Assistant", version="1.0.0")
 
-def _sanitize_filename(name: str) -> str:
-    name = os.path.basename(name or "unknown.pdf")
-    # Replace suspicious chars with underscore, keep common safe chars
-    name = re.sub(r"[^A-Za-z0-9._-]", "_", name)
-    return name[:200]
+allowed = os.getenv("ALLOWED_ORIGINS")
+if allowed:
+    origins = [o.strip() for o in allowed.split(",") if o.strip()]
 else:
     origins = ["*"]  # dev fallback
 
@@ -63,15 +50,19 @@ app.add_middleware(
 # Preload heavy models on startup (optional). This ensures the embedding
 # model is downloaded during the container build/startup rather than on
 # the first user request, reducing first-request latency.
-from vector_store import preload_models
-
-
 @app.on_event("startup")
 async def on_startup():
     try:
         preload_models()
     except Exception as e:
-        print(f"[startup] Failed to preload models: {e}")
+        logger.warning("[startup] Failed to preload models: %s", e)
+
+
+def _sanitize_filename(name: str) -> str:
+    name = os.path.basename(name or "unknown.pdf")
+    # Replace suspicious chars with underscore, keep common safe chars
+    name = re.sub(r"[^A-Za-z0-9._-]", "_", name)
+    return name[:200]
 
 MAX_TOTAL_SIZE_BYTES = 50 * 1024 * 1024  # 50 MB
 
