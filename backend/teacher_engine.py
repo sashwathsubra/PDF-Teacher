@@ -165,7 +165,7 @@ def build_answer(
         answer = re.sub(r"(?im)^\s*Source:.*(?:\r?\n)?", "", answer).strip()
 
         normalized = re.sub(r"\s+", " ", answer).strip()
-        if re.match(r"(?i)^Incomplete (information|info)\.?$", normalized):
+        if re.match(r"(?i)^Incomplete (information|info)\b", normalized):
             return NOT_COVERED_RESPONSE, []
 
         # Append canonical source line using the first chunk (if present)

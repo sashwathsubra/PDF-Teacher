@@ -43,14 +43,13 @@ export default function MessageBubble({ role, text, sources = [] }) {
         <span className="text-accent-600 text-xs font-bold">T</span>
       </div>
       <div className="flex-1 min-w-0">
-        <div className="relative">
-          <div className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap" 
-               dangerouslySetInnerHTML={{ __html: text }}
-          />
-
-          <div className="absolute top-0 right-0">
+        <div className="relative rounded-3xl border border-gray-100 bg-gray-50 p-4">
+          <div className="absolute top-3 right-3">
             <CopyButton text={text} />
           </div>
+          <div className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap pr-10" 
+               dangerouslySetInnerHTML={{ __html: text }}
+          />
         </div>
         {sources.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-2">
